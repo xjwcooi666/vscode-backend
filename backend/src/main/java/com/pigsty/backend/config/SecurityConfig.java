@@ -12,12 +12,12 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.CorsRegistry; // 1. 确保导入
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity // 激活 @PreAuthorize
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Autowired
@@ -30,22 +30,19 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
-
+            
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() 
                 .requestMatchers("/api/auth/**").permitAll()
-
-                // [!!! 新增的规则 !!!]
-                // 允许所有“已登录”用户访问 /api/devices/ 路径
-                .requestMatchers("/api/devices/**").authenticated()
-
-                .requestMatchers("/api/pigsties/**").authenticated()
-                .requestMatchers("/api/admin/**").authenticated()
+                
+                .requestMatchers("/api/devices/**").authenticated() 
+                .requestMatchers("/api/pigsties/**").authenticated() 
+                .requestMatchers("/api/admin/**").authenticated() 
                 .requestMatchers("/api/data/**").authenticated()
                 .requestMatchers("/api/warnings/**").authenticated()
                 .anyRequest().authenticated()
             )
-
+            
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authenticationProvider(authenticationProvider)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -57,7 +54,8 @@ public class SecurityConfig {
     public WebMvcConfigurer corsConfigurer() {
         return new WebMvcConfigurer() {
             @Override
-            public void addCorsMappings(@NonNull CorsRegistry registry) {
+            // [!!! 关键修复 !!!] 把 Registry 改为 CorsRegistry
+            public void addCorsMappings(@NonNull CorsRegistry registry) { 
                 registry.addMapping("/api/**")
                         .allowedOrigins("http://localhost:3000") // 确保这是你前端的地址
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")

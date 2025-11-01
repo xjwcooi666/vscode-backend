@@ -3,6 +3,9 @@ package com.pigsty.backend.controller;
 import com.pigsty.backend.model.Role;
 import com.pigsty.backend.model.User;
 import com.pigsty.backend.repository.UserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,8 +19,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-// [!!! 关键改动 !!!] 我们移除了所有 @PreAuthorize 注解
-
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
@@ -28,41 +29,36 @@ public class AdminController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    // 内部 DTO (数据传输对象)，用于安全地返回用户信息
+    // (UserDTO 保持不变)
     public record UserDTO(Long id, String username, String name, Role role) {}
 
     /**
      * 手动检查当前用户是否为 ADMIN
-     * @return true 如果是 ADMIN, 否则抛出异常
      */
     private boolean checkIsAdmin() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         boolean isAdmin = authentication.getAuthorities().stream()
                 .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_ADMIN"));
-        
-        if (!isAdmin) {
-             // 如果不是 Admin，我们可以在这里记录日志或直接返回错误
-             // 为了安全，我们不抛出异常，而是返回 false
-             return false;
-        }
-        return true;
+        return isAdmin;
     }
 
     /**
-     * API 1: 获取所有用户 (仅限 Admin)
+     * API 1: 获取所有用户
+     * [!!! 关键修复 !!!]
+     * 移除手动的 `checkIsAdmin()` 检查。
+     * 现在 `SecurityConfig` 里的 `authenticated()` 规则
+     * 允许 *任何* 登录的用户（包括技术员）查看用户列表。
      */
     @GetMapping("/users")
     public ResponseEntity<List<UserDTO>> getAllUsers() {
-        // [!!! 手动安全检查 !!!]
-        if (!checkIsAdmin()) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build(); // 403 禁止访问
-        }
+        // if (!checkIsAdmin()) {  <-- [!!! 关键修复 !!!] 删除这一行
+        //     return ResponseEntity.status(HttpStatus.FORBIDDEN).build(); 
+        // } <-- [!!! 关键修复 !!!] 删除这一行
 
         List<UserDTO> users = userRepository.findAll().stream()
                 .map(user -> new UserDTO(
                         user.getId(),
                         user.getUsername(),
-                        // [!!! 关键修复 !!!] 检查 name 是否为 null
                         (user.getName() != null) ? user.getName() : "No Name", 
                         user.getRole()
                 ))
@@ -71,23 +67,22 @@ public class AdminController {
     }
 
     /**
-     * API 2: 添加新用户 (技术员) (仅限 Admin)
+     * API 2: 添加新用户 (技术员)
+     * (保持不变，仍然受 Admin 保护)
      */
     @PostMapping("/users")
     public ResponseEntity<?> addUser(@RequestBody Map<String, String> request) {
-        // [!!! 手动安全检查 !!!]
         if (!checkIsAdmin()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Only ADMINs can add users.");
         }
 
         String username = request.get("username");
         String password = request.get("password");
-        String name = request.get("name"); // "管理员", "技术员A"
+        String name = request.get("name");
 
         if (username == null || password == null || name == null) {
             return ResponseEntity.badRequest().body("Username, password, and name are required.");
         }
-
         if (userRepository.findByUsername(username).isPresent()) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Username is already taken.");
         }
@@ -104,11 +99,11 @@ public class AdminController {
     }
 
     /**
-     * API 3: 删除用户 (仅限 Admin)
+     * API 3: 删除用户 (按 ID)
+     * (保持不变，仍然受 Admin 保护)
      */
     @DeleteMapping("/users/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
-        // [!!! 手动安全检查 !!!]
         if (!checkIsAdmin()) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
@@ -116,7 +111,6 @@ public class AdminController {
         Optional<User> userOpt = userRepository.findById(id);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
-            // 防止 Admin 删除自己
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             if (user.getUsername().equals(authentication.getName())) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).build(); // 400 不能删除自己
@@ -128,3 +122,4 @@ public class AdminController {
         }
     }
 }
+

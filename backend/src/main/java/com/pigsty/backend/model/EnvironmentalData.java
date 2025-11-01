@@ -18,7 +18,12 @@ public class EnvironmentalData {
     private Double temperature;
     private Double humidity;
     private Double ammoniaLevel;
+
+    // [!!! 关键 !!!] 确保这个字段存在
+    private Double light;
+
     private String pigstyId;
+
     private LocalDateTime timestamp;
 
     @jakarta.persistence.PrePersist

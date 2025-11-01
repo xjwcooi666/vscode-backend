@@ -5,13 +5,13 @@ import com.pigsty.backend.repository.PigstyRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize; // 导入权限注解
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/pigsties") // 所有 API 都在 /api/pigsties 路径下
+@RequestMapping("/api/pigsties")
 public class PigstyController {
 
     @Autowired
@@ -19,10 +19,9 @@ public class PigstyController {
 
     /**
      * API 1: 获取所有猪舍列表
-     * 任何人登录了都能看 (ADMIN 和 USER)
      */
     @GetMapping
-    @PreAuthorize("isAuthenticated()") // 只要登录了就行
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<Pigsty>> getAllPigsties() {
         List<Pigsty> pigsties = pigstyRepository.findAll();
         return ResponseEntity.ok(pigsties);
@@ -30,18 +29,19 @@ public class PigstyController {
 
     /**
      * API 2: 创建一个新的猪舍
-     * 只有 ADMIN 能创建
      */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')") // 必须是 ADMIN 角色
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Pigsty> createPigsty(@RequestBody Pigsty pigsty) {
+        // [!!! 关键改动 !!!] 
+        // 确保所有字段都被保存
+        // @RequestBody 会自动把 JSON 映射到 Pigsty 对象的所有字段
         Pigsty savedPigsty = pigstyRepository.save(pigsty);
         return ResponseEntity.status(HttpStatus.CREATED).body(savedPigsty);
     }
 
     /**
      * API 3: 更新一个猪舍的信息 (按 ID)
-     * 只有 ADMIN 能更新
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -49,11 +49,11 @@ public class PigstyController {
         
         return pigstyRepository.findById(id)
             .map(existingPigsty -> {
-                // 更新字段
+                // 更新基本信息
                 existingPigsty.setName(pigstyDetails.getName());
                 existingPigsty.setLocation(pigstyDetails.getLocation());
                 existingPigsty.setCapacity(pigstyDetails.getCapacity());
-                existingPigsty.setTechnicianId(pigstyDetails.getTechnicianId()); // 更新分配的技术员
+                existingPigsty.setTechnicianId(pigstyDetails.getTechnicianId());
                 
                 // 更新所有阈值
                 existingPigsty.setTempThresholdHigh(pigstyDetails.getTempThresholdHigh());
@@ -61,6 +61,10 @@ public class PigstyController {
                 existingPigsty.setHumidityThresholdHigh(pigstyDetails.getHumidityThresholdHigh());
                 existingPigsty.setHumidityThresholdLow(pigstyDetails.getHumidityThresholdLow());
                 existingPigsty.setAmmoniaThresholdHigh(pigstyDetails.getAmmoniaThresholdHigh());
+                
+                // [!!! 关键修复 !!!] 添加光照阈值的保存逻辑
+                existingPigsty.setLightThresholdHigh(pigstyDetails.getLightThresholdHigh());
+                existingPigsty.setLightThresholdLow(pigstyDetails.getLightThresholdLow());
                 
                 Pigsty updatedPigsty = pigstyRepository.save(existingPigsty);
                 return ResponseEntity.ok(updatedPigsty);
@@ -70,16 +74,15 @@ public class PigstyController {
 
     /**
      * API 4: 删除一个猪舍 (按 ID)
-     * 只有 ADMIN 能删除
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deletePigsty(@PathVariable Long id) {
         if (pigstyRepository.existsById(id)) {
             pigstyRepository.deleteById(id);
-            return ResponseEntity.noContent().build(); // 返回 204 No Content
+            return ResponseEntity.noContent().build();
         } else {
-            return ResponseEntity.notFound().build(); // 返回 404
+            return ResponseEntity.notFound().build();
         }
     }
 }

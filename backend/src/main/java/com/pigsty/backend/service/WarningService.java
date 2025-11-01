@@ -1,104 +1,132 @@
 package com.pigsty.backend.service;
 
+import com.pigsty.backend.model.Device; // 1. 导入 Device
 import com.pigsty.backend.model.EnvironmentalData;
+import com.pigsty.backend.model.Pigsty;
 import com.pigsty.backend.model.WarningLog;
-import com.pigsty.backend.model.WarningRule;
-import com.pigsty.backend.repository.WarningLogRepository;
-import com.pigsty.backend.repository.WarningRuleRepository;
+import com.pigsty.backend.model.Device.MetricType; // 2. 导入 MetricType
+import com.pigsty.backend.repository.DeviceRepository; // 3. 导入 DeviceRepository
+import com.pigsty.backend.repository.PigstyRepository;
+import com.pigsty.backend.repository.WarningLogRepository; 
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
+import java.util.List; // 4. 导入 List
+import java.util.Optional;
 
-@Service // 告诉 Spring 这是一个服务类
+@Service
 public class WarningService {
 
-    @Autowired // 自动注入
-    private WarningRuleRepository ruleRepository;
+    @Autowired
+    private PigstyRepository pigstyRepository;
 
-    @Autowired // 自动注入
+    @Autowired
     private WarningLogRepository logRepository;
 
+    @Autowired // 5. 注入 DeviceRepository
+    private DeviceRepository deviceRepository;
+
     /**
-     * 核心方法：检查新数据是否触发任何预警
+     * 核心方法：(已重写)
+     * 检查新数据是否触发其 *所属猪舍* 的阈值
      * @param data 刚上报的环境数据
      */
     public void checkDataForWarnings(EnvironmentalData data) {
-        // 1. 获取所有当前“启用”的规则
-        List<WarningRule> activeRules = ruleRepository.findByEnabledTrue();
+        
+        Long pigstyId;
+        try {
+            pigstyId = Long.parseLong(data.getPigstyId());
+        } catch (NumberFormatException e) {
+            System.err.println("Invalid pigstyId format in data: " + data.getPigstyId());
+            return;
+        }
 
-        // 2. 遍历每一条规则，看是否匹配
-        for (WarningRule rule : activeRules) {
+        Optional<Pigsty> pigstyOpt = pigstyRepository.findById(pigstyId);
 
-            // 检查规则是否适用于这个猪舍 (匹配 ID 或者规则是 "ALL")
-            boolean pigstyMatch = rule.getPigstyId().equalsIgnoreCase("ALL") || 
-                                  rule.getPigstyId().equalsIgnoreCase(data.getPigstyId());
+        if (!pigstyOpt.isPresent()) {
+            System.err.println("Pigsty with ID " + pigstyId + " not found. Cannot check warnings.");
+            return;
+        }
 
-            if (pigstyMatch && evaluateRule(data, rule)) {
-                // 3. 如果规则被触发，就创建一条预警日志
-                createWarningLog(data, rule);
+        Pigsty pigsty = pigstyOpt.get();
+
+        // [!!! 关键修复 !!!]
+        // 6. 获取这个猪舍的所有设备
+        List<Device> devices = deviceRepository.findByPigstyId(pigstyId);
+
+        // 7. 逐一检查每个指标
+        
+        // 检查温度
+        if (data.getTemperature() != null && isDeviceActive(devices, MetricType.TEMPERATURE)) {
+            if (pigsty.getTempThresholdHigh() != null && data.getTemperature() > pigsty.getTempThresholdHigh()) {
+                createWarningLog(pigsty, "TEMPERATURE", data.getTemperature(), "温度过高！");
+            }
+            if (pigsty.getTempThresholdLow() != null && data.getTemperature() < pigsty.getTempThresholdLow()) {
+                createWarningLog(pigsty, "TEMPERATURE", data.getTemperature(), "温度过低！");
+            }
+        }
+
+        // 检查湿度
+        if (data.getHumidity() != null && isDeviceActive(devices, MetricType.HUMIDITY)) {
+            if (pigsty.getHumidityThresholdHigh() != null && data.getHumidity() > pigsty.getHumidityThresholdHigh()) {
+                createWarningLog(pigsty, "HUMIDITY", data.getHumidity(), "湿度过高！");
+            }
+            if (pigsty.getHumidityThresholdLow() != null && data.getHumidity() < pigsty.getHumidityThresholdLow()) {
+                createWarningLog(pigsty, "HUMIDITY", data.getHumidity(), "湿度过低！");
+            }
+        }
+        
+        // 检查氨气
+        if (data.getAmmoniaLevel() != null && isDeviceActive(devices, MetricType.AMMONIA)) {
+            if (pigsty.getAmmoniaThresholdHigh() != null && data.getAmmoniaLevel() > pigsty.getAmmoniaThresholdHigh()) {
+                createWarningLog(pigsty, "AMMONIA", data.getAmmoniaLevel(), "氨气浓度过高！");
+            }
+        }
+
+        // 检查光照
+        if (data.getLight() != null && isDeviceActive(devices, MetricType.LIGHT)) {
+            if (pigsty.getLightThresholdHigh() != null && data.getLight() > pigsty.getLightThresholdHigh()) {
+                createWarningLog(pigsty, "LIGHT", data.getLight(), "光照过强！");
+            }
+            if (pigsty.getLightThresholdLow() != null && data.getLight() < pigsty.getLightThresholdLow()) {
+                createWarningLog(pigsty, "LIGHT", data.getLight(), "光照过弱！");
             }
         }
     }
 
     /**
-     * 私有辅助方法：评估单条规则
-     * @return true 如果规则被触发, false 如果没有
+     * 8. [!!! 新增辅助方法 !!!]
+     * 检查特定类型的设备是否存在且已激活
      */
-    private boolean evaluateRule(EnvironmentalData data, WarningRule rule) {
-        Double actualValue = null;
-        Double threshold = rule.getThreshold();
-        String metricType = rule.getMetricType();
-        String operator = rule.getOperator();
-
-        // 根据规则的 metricType，获取环境数据中对应的值
-        if ("temperature".equalsIgnoreCase(metricType)) {
-            actualValue = data.getTemperature();
-        } else if ("humidity".equalsIgnoreCase(metricType)) {
-            actualValue = data.getHumidity();
-        } else if ("ammoniaLevel".equalsIgnoreCase(metricType)) {
-            actualValue = data.getAmmoniaLevel();
+    private boolean isDeviceActive(List<Device> devices, MetricType type) {
+        // 查找匹配该类型的设备
+        Optional<Device> deviceOpt = devices.stream()
+            .filter(d -> d.getType() == type)
+            .findFirst();
+        
+        if (deviceOpt.isPresent()) {
+            // 如果设备存在，检查它是否处于激活状态
+            return deviceOpt.get().isActive(); 
         }
-
-        // 如果数据有效 (不是 null)
-        if (actualValue != null) {
-            // 根据操作符进行比较
-            switch (operator) {
-                case ">":
-                    return actualValue > threshold;
-                case "<":
-                    return actualValue < threshold;
-                case "=":
-                    return actualValue.equals(threshold);
-                // 你以后可以扩展更多操作符, 比如 ">="
-            }
-        }
-        return false; // 无法评估或未触发
+        
+        // 如果该猪舍 *根本没有* 这种类型的设备，我们也不应该报警
+        return false; 
     }
 
     /**
-     * 私有辅助方法：创建并保存预警日志
+     * 创建并保存预警日志 (保持不变)
      */
-    private void createWarningLog(EnvironmentalData data, WarningRule rule) {
+    private void createWarningLog(Pigsty pigsty, String metricType, Double actualValue, String message) {
         WarningLog log = new WarningLog();
-        log.setPigstyId(data.getPigstyId());
-        log.setMessage(rule.getMessage()); // "温度过高！"
-        log.setMetricType(rule.getMetricType()); // "temperature"
-        log.setThresholdValue(rule.getThreshold()); // 30.0
+        log.setPigstyId(String.valueOf(pigsty.getId()));
+        log.setMessage(message);
+        log.setMetricType(metricType);
+        log.setActualValue(actualValue);
 
-        // 记录实际超标的值
-        if ("temperature".equalsIgnoreCase(rule.getMetricType())) {
-            log.setActualValue(data.getTemperature());
-        } else if ("humidity".equalsIgnoreCase(rule.getMetricType())) {
-            log.setActualValue(data.getHumidity());
-        } else if ("ammoniaLevel".equalsIgnoreCase(rule.getMetricType())) {
-            log.setActualValue(data.getAmmoniaLevel());
-        }
-
-        // 保存到数据库
         logRepository.save(log);
 
-        // (可选) 可以在这里添加发送邮件或短信的逻辑
         System.out.println("!!! 预警触发 !!!: " + log.getMessage() + " 猪舍: " + log.getPigstyId());
     }
 }
+
