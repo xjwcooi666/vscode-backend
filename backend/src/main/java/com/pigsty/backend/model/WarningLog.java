@@ -23,6 +23,7 @@ public class WarningLog {
     private LocalDateTime timestamp;  // 预警发生时间
 
     private boolean acknowledged = false; // 预警是否已被“确认处理”
+    private LocalDateTime acknowledgedAt;  // 确认处理时间
 
     @jakarta.persistence.PrePersist
     public void prePersist() {
