@@ -6,6 +6,15 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import lombok.Data;
 
+/**
+ * 猪舍实体类
+ * 
+ * 该类表示系统中的一个猪舍，包含基本信息和各项环境指标的阈值配置。
+ * 阈值用于判断环境数据是否正常，超出范围时会触发告警。
+ * 
+ * @author 系统架构
+ * @version 1.0
+ */
 @Entity
 @Data
 public class Pigsty {
@@ -19,19 +28,14 @@ public class Pigsty {
     private Integer capacity;
     private Long technicianId; 
 
-    // --- 温度 ---
     private Double tempThresholdHigh;
     private Double tempThresholdLow;
     
-    // --- 湿度 ---
     private Double humidityThresholdHigh;
     private Double humidityThresholdLow;
     
-    // --- 氨气 ---
     private Double ammoniaThresholdHigh;
-    // (氨气通常没有下限)
 
-    //  添加光照阈值
     private Double lightThresholdHigh;
     private Double lightThresholdLow;
 }

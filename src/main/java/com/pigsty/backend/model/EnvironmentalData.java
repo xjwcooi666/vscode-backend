@@ -7,6 +7,15 @@ import jakarta.persistence.Id;
 import lombok.Data;
 import java.time.LocalDateTime;
 
+/**
+ * 环境数据实体类
+ * 
+ * 该类表示从猪舍设备采集的一次环境数据记录，包含温度、湿度、氨气浓度和光照等指标。
+ * 每次数据上报时会自动设置时间戳。
+ * 
+ * @author 系统架构
+ * @version 1.0
+ */
 @Entity
 @Data
 public class EnvironmentalData {
@@ -19,7 +28,6 @@ public class EnvironmentalData {
     private Double humidity;
     private Double ammoniaLevel;
 
-    // [!!! 关键 !!!] 确保这个字段存在
     private Double light;
 
     private String pigstyId;

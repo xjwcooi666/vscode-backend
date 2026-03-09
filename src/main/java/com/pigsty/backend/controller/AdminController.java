@@ -19,6 +19,20 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * 管理员控制器
+ * 
+ * 该控制器负责处理管理员专属的用户管理操作。
+ * 所有接口路径都以 /api/admin 为前缀。
+ * 
+ * 主要功能：
+ * - 获取用户列表：所有已认证用户可访问
+ * - 添加用户：仅 ADMIN 角色可操作
+ * - 删除用户：仅 ADMIN 角色可操作
+ * 
+ * @author 系统架构
+ * @version 1.0
+ */
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
@@ -29,11 +43,19 @@ public class AdminController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    // (UserDTO 保持不变)
+    /**
+     * 用户数据传输对象
+     * 
+     * 用于返回用户列表时的数据格式，避免暴露敏感信息（如密码）。
+     */
     public record UserDTO(Long id, String username, String name, Role role) {}
 
     /**
-     * 手动检查当前用户是否为 ADMIN
+     * 检查当前用户是否为管理员
+     * 
+     * 从安全上下文中获取当前用户的权限，判断是否具有 ADMIN 角色。
+     * 
+     * @return 如果当前用户是管理员返回true，否则返回false
      */
     private boolean checkIsAdmin() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -43,11 +65,14 @@ public class AdminController {
     }
 
     /**
-     * API 1: 获取所有用户
-     * [!!! 关键修复 !!!]
-     * 移除手动的 `checkIsAdmin()` 检查。
-     * 现在 `SecurityConfig` 里的 `authenticated()` 规则
-     * 允许 *任何* 登录的用户（包括技术员）查看用户列表。
+     * 获取所有用户列表
+     * 
+     * 查询系统中所有用户的基本信息。
+     * 所有已登录认证的用户都可以访问此接口。
+     * 
+     * 接口路径: GET /api/admin/users
+     * 
+     * @return 用户列表，包含用户的ID、用户名、姓名和角色信息
      */
     @GetMapping("/users")
     public ResponseEntity<List<UserDTO>> getAllUsers() {
@@ -67,8 +92,15 @@ public class AdminController {
     }
 
     /**
-     * API 2: 添加新用户 (技术员)
-     * (保持不变，仍然受 Admin 保护)
+     * 添加新用户
+     * 
+     * 在系统中创建一个新的用户账号，默认角色为 USER（技术员）。
+     * 仅具有 ADMIN 角色的用户可以执行此操作。
+     * 
+     * 接口路径: POST /api/admin/users
+     * 
+     * @param request 包含用户名、密码和姓名的请求体
+     * @return 创建成功的用户信息，参数缺失返回400，用户名冲突返回409，无权限返回403
      */
     @PostMapping("/users")
     public ResponseEntity<?> addUser(@RequestBody Map<String, String> request) {
@@ -99,8 +131,16 @@ public class AdminController {
     }
 
     /**
-     * API 3: 删除用户 (按 ID)
-     * (保持不变，仍然受 Admin 保护)
+     * 删除用户
+     * 
+     * 根据用户ID从系统中删除用户记录。
+     * 注意：用户不能删除自己的账号。
+     * 仅具有 ADMIN 角色的用户可以执行此操作。
+     * 
+     * 接口路径: DELETE /api/admin/users/{id}
+     * 
+     * @param id 要删除的用户ID
+     * @return 删除成功返回200，找不到返回404，删除自己返回400，无权限返回403
      */
     @DeleteMapping("/users/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {

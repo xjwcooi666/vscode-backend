@@ -12,6 +12,15 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.List;
 
+/**
+ * 用户实体类
+ * 
+ * 该类表示系统中的一个用户，实现了 Spring Security 的 UserDetails 接口，
+ * 用于身份认证和授权。用户可以拥有不同的角色（普通用户或管理员）。
+ * 
+ * @author 系统架构
+ * @version 1.0
+ */
 @Data
 @Builder
 @NoArgsConstructor
@@ -28,7 +37,6 @@ public class User implements UserDetails {
     private String username;
     private String password;
     
-    // 这是我们添加的新字段
     private String name; 
 
     @Enumerated(EnumType.STRING)

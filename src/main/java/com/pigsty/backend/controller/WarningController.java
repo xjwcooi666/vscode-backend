@@ -29,6 +29,19 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+/**
+ * 告警管理控制器
+ * 
+ * 该控制器负责处理环境告警的查询和确认操作。
+ * 所有接口路径都以 /api/warnings 为前缀。
+ * 
+ * 主要功能：
+ * - 获取告警列表：支持分页、按确认状态筛选、按角色过滤数据
+ * - 确认告警：将告警标记为已处理状态
+ * 
+ * @author 系统架构
+ * @version 1.0
+ */
 @RestController
 @RequestMapping("/api/warnings")
 public class WarningController {
@@ -43,8 +56,21 @@ public class WarningController {
     private UserRepository userRepository;
 
     /**
-     * GET /api/warnings/latest?acknowledged=false/true
-     * 支持查询未处理/已处理预警（分页、按角色过滤）
+     * 获取最新告警列表
+     * 
+     * 分页查询系统中的告警记录，支持多种筛选条件。
+     * 根据用户角色进行数据过滤：
+     * - ADMIN 角色：可查看所有猪舍的告警
+     * - USER 角色：只能查看分配给自己的猪舍的告警
+     * 
+     * 接口路径: GET /api/warnings/latest
+     * 
+     * @param page 页码，从0开始，默认为0
+     * @param size 每页条数，默认为100
+     * @param acknowledged 是否只显示已确认的告警，默认为false
+     * @param pigstyId 猪舍ID筛选，可选，空值或"all"表示不筛选
+     * @param metricType 指标类型筛选，可选，空值或"all"表示不筛选
+     * @return 分页告警数据，未授权返回401
      */
     @GetMapping("/latest")
     public ResponseEntity<Page<WarningLog>> getLatestWarnings(
@@ -83,14 +109,34 @@ public class WarningController {
                 return ResponseEntity.ok(emptyPage);
             }
 
-            Page<WarningLog> filteredPage = logRepository.searchForTechnician(acknowledged, userPigstyIds, metricFilter, pageable);
+            List<String> filteredPigstyIds;
+            if (pigstyFilter != null && !pigstyFilter.equals("all")) {
+                filteredPigstyIds = userPigstyIds.stream()
+                        .filter(id -> id.equals(pigstyFilter))
+                        .collect(Collectors.toList());
+            } else {
+                filteredPigstyIds = userPigstyIds;
+            }
+
+            if (filteredPigstyIds.isEmpty()) {
+                Page<WarningLog> emptyPage = new PageImpl<>(Collections.emptyList(), pageable, 0);
+                return ResponseEntity.ok(emptyPage);
+            }
+
+            Page<WarningLog> filteredPage = logRepository.searchForTechnician(acknowledged, filteredPigstyIds, metricFilter, pageable);
             return ResponseEntity.ok(filteredPage);
         }
     }
 
     /**
-     * POST /api/warnings/acknowledge/{id}
-     * 标记预警为已处理
+     * 确认告警
+     * 
+     * 将指定ID的告警标记为已处理状态，并记录确认时间。
+     * 
+     * 接口路径: POST /api/warnings/acknowledge/{id}
+     * 
+     * @param id 告警记录的ID
+     * @return 更新后的告警对象，找不到返回404
      */
     @PostMapping("/acknowledge/{id}")
     public ResponseEntity<WarningLog> acknowledgeWarning(@PathVariable Long id) {
