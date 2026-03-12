@@ -7,7 +7,8 @@ import com.pigsty.backend.model.WarningLog;
 import com.pigsty.backend.model.Device.MetricType; // 2. 导入 MetricType
 import com.pigsty.backend.repository.DeviceRepository; // 3. 导入 DeviceRepository
 import com.pigsty.backend.repository.PigstyRepository;
-import com.pigsty.backend.repository.WarningLogRepository; 
+import com.pigsty.backend.repository.WarningLogRepository;
+import com.pigsty.backend.controller.WebSocketHandler; 
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -157,9 +158,12 @@ public class WarningService {
         log.setMetricType(metricType);
         log.setActualValue(actualValue);
 
-        logRepository.save(log);
+        WarningLog savedLog = logRepository.save(log);
 
-        System.out.println("!!! 预警触发 !!!: " + log.getMessage() + " 猪舍: " + log.getPigstyId());
+        // 通过 WebSocket 推送预警消息
+        WebSocketHandler.sendWarning(savedLog);
+
+        System.out.println("!!! 预警触发 !!!: " + savedLog.getMessage() + " 猪舍: " + savedLog.getPigstyId());
     }
 }
 

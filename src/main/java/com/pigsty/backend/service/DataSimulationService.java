@@ -4,6 +4,7 @@ import com.pigsty.backend.model.EnvironmentalData;
 import com.pigsty.backend.model.Pigsty;
 import com.pigsty.backend.repository.DataRepository;
 import com.pigsty.backend.repository.PigstyRepository;
+import com.pigsty.backend.controller.WebSocketHandler;
 import java.util.List;
 import java.util.Random;
 import org.slf4j.Logger;
@@ -117,6 +118,8 @@ public class DataSimulationService {
                 pigsty.getLightThresholdHigh()));
 
         EnvironmentalData saved = dataRepository.save(data);
+        // 通过 WebSocket 推送数据更新消息
+        WebSocketHandler.sendDataUpdate(saved);
         warningService.checkDataForWarnings(saved);
     }
 

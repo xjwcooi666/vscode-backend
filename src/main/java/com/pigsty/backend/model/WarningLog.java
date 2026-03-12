@@ -4,6 +4,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.Table;
 import lombok.Data;
 import java.time.LocalDateTime;
 
@@ -18,6 +20,12 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Data
+@Table(name = "warning_log", indexes = {
+    @Index(name = "idx_acknowledged", columnList = "acknowledged"),
+    @Index(name = "idx_pigsty_id", columnList = "pigsty_id"),
+    @Index(name = "idx_metric_type", columnList = "metric_type"),
+    @Index(name = "idx_timestamp", columnList = "timestamp")
+})
 public class WarningLog {
 
     @Id
