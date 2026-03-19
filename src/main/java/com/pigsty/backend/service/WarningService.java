@@ -157,13 +157,62 @@ public class WarningService {
         log.setMessage(message);
         log.setMetricType(metricType);
         log.setActualValue(actualValue);
+        
+        // 根据数据超出阈值的程度设置预警级别
+        String level = determineWarningLevel(pigsty, metricType, actualValue);
+        log.setLevel(level);
 
         WarningLog savedLog = logRepository.save(log);
 
         // 通过 WebSocket 推送预警消息
         WebSocketHandler.sendWarning(savedLog);
 
-        System.out.println("!!! 预警触发 !!!: " + savedLog.getMessage() + " 猪舍: " + savedLog.getPigstyId());
+        System.out.println("!!! 预警触发 !!!: " + savedLog.getMessage() + " 猪舍: " + savedLog.getPigstyId() + " 级别: " + savedLog.getLevel());
+    }
+    
+    /**
+     * 根据数据超出阈值的程度确定预警级别
+     * 
+     * @param pigsty 猪舍对象
+     * @param metricType 指标类型
+     * @param actualValue 实际测量值
+     * @return 预警级别：WARNING 或 DANGER
+     */
+    private String determineWarningLevel(Pigsty pigsty, String metricType, Double actualValue) {
+        // 计算超出阈值的比例
+        double thresholdExceedRatio = 0.0;
+        
+        switch (metricType) {
+            case "TEMPERATURE":
+                if (actualValue > pigsty.getTempThresholdHigh()) {
+                    thresholdExceedRatio = (actualValue - pigsty.getTempThresholdHigh()) / pigsty.getTempThresholdHigh();
+                } else if (actualValue < pigsty.getTempThresholdLow()) {
+                    thresholdExceedRatio = (pigsty.getTempThresholdLow() - actualValue) / pigsty.getTempThresholdLow();
+                }
+                break;
+            case "HUMIDITY":
+                if (actualValue > pigsty.getHumidityThresholdHigh()) {
+                    thresholdExceedRatio = (actualValue - pigsty.getHumidityThresholdHigh()) / pigsty.getHumidityThresholdHigh();
+                } else if (actualValue < pigsty.getHumidityThresholdLow()) {
+                    thresholdExceedRatio = (pigsty.getHumidityThresholdLow() - actualValue) / pigsty.getHumidityThresholdLow();
+                }
+                break;
+            case "AMMONIA":
+                if (actualValue > pigsty.getAmmoniaThresholdHigh()) {
+                    thresholdExceedRatio = (actualValue - pigsty.getAmmoniaThresholdHigh()) / pigsty.getAmmoniaThresholdHigh();
+                }
+                break;
+            case "LIGHT":
+                if (actualValue > pigsty.getLightThresholdHigh()) {
+                    thresholdExceedRatio = (actualValue - pigsty.getLightThresholdHigh()) / pigsty.getLightThresholdHigh();
+                } else if (actualValue < pigsty.getLightThresholdLow()) {
+                    thresholdExceedRatio = (pigsty.getLightThresholdLow() - actualValue) / pigsty.getLightThresholdLow();
+                }
+                break;
+        }
+        
+        // 如果超出阈值比例大于 0.1（10%），则为危险级别，否则为警告级别
+        return thresholdExceedRatio > 0.1 ? "DANGER" : "WARNING";
     }
 }
 

@@ -37,6 +37,7 @@ public class WarningLog {
     private String metricType;
     private Double actualValue;
     private Double thresholdValue;
+    private String level; // 预警级别：WARNING 或 DANGER
     private LocalDateTime timestamp;
 
     private boolean acknowledged = false;
