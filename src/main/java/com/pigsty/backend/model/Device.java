@@ -6,17 +6,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import java.time.LocalDateTime;
 import lombok.Data;
 
-/**
- * 设备实体类
- * 
- * 该类表示系统中的一个监测设备，用于采集猪舍的环境数据。
- * 每个设备属于一个猪舍，可以监测特定类型的环境指标。
- * 
- * @author 系统架构
- * @version 1.0
- */
 @Entity
 @Data
 public class Device {
@@ -35,13 +27,26 @@ public class Device {
 
     private boolean isActive = true;
     
-    /**
-     * 设备监测指标类型枚举
-     */
+    private String operatingStatus = "online";
+    
+    private LocalDateTime lastHeartbeat;
+    
     public enum MetricType {
         TEMPERATURE,
         HUMIDITY,
         AMMONIA,
         LIGHT
+    }
+    
+    public boolean isOnline() {
+        return "online".equals(operatingStatus);
+    }
+    
+    public boolean hasError() {
+        return "error".equals(operatingStatus);
+    }
+    
+    public boolean isOffline() {
+        return "offline".equals(operatingStatus);
     }
 }

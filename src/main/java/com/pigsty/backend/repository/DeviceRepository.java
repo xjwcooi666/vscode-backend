@@ -9,6 +9,5 @@ import java.util.List;
 @Repository
 public interface DeviceRepository extends JpaRepository<Device, Long> {
 
-    // 允许我们按猪舍 ID 查找所有设备
     List<Device> findByPigstyId(Long pigstyId);
 }
